@@ -109,6 +109,7 @@ if __name__ == "__main__":
         packages=find_packages(include=["allenact", "allenact.*"]),
         install_requires=[
             "gym>=0.17.0,<0.18.0",
+            "tensorboardx>=2.1",
             "setproctitle",
             "moviepy>=1.0.3",
             "filelock",
