@@ -67,6 +67,26 @@ def get_open_x_displays(throw_error_if_empty: bool = False) -> Sequence[str]:
         os.path.basename(s)[1:] for s in glob.glob("/tmp/.X11-unix/X*")
     ]
 
+    print(open_display_strs)
+
+    # override the default x display when running on a slurm cluster
+    if 'SLURM_JOB_GRES' in os.environ:  # if running inside a slurm node
+
+        target_display = os.getenv('SLURM_JOB_GRES')
+
+        assert target_display in open_display_strs, "target X display not open"
+
+        open_display_strs = [target_display]  # other displays will not work
+
+    # override the default x display when running on a slurm cluster
+    elif 'SLURM_STEP_GRES' in os.environ:  # if running inside a slurm node
+
+        target_display = os.getenv('SLURM_STEP_GRES')
+
+        assert target_display in open_display_strs, "target X display not open"
+
+        open_display_strs = [target_display]  # other displays will not work
+
     for open_display_str in sorted(open_display_strs):
 
         try:
@@ -75,6 +95,7 @@ def get_open_x_displays(throw_error_if_empty: bool = False) -> Sequence[str]:
             continue
 
         try:
+            print("Connecting to Display: ", open_display_str)
             display = Xlib.display.Display(":{}".format(open_display_str))
         except Xlib.error.DisplayConnectionError:
             continue
