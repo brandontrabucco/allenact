@@ -1,6 +1,7 @@
 import glob
 import math
 import os
+import signal
 import platform
 from contextlib import contextmanager
 from typing import Sequence
@@ -8,6 +9,23 @@ from typing import Sequence
 import Xlib
 import Xlib.display
 import ai2thor.controller
+
+
+class TimeoutHandler(object):
+
+    def __init__(self, seconds=1, error_message='Timeout'):
+        self.seconds = seconds
+        self.error_message = error_message
+
+    def handle_timeout(self, signum, frame):
+        raise TimeoutError(self.error_message)
+
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self.handle_timeout)
+        signal.alarm(self.seconds)
+
+    def __exit__(self, type, value, traceback):
+        signal.alarm(0)
 
 
 @contextmanager
@@ -25,20 +43,20 @@ def include_object_data(controller: ai2thor.controller.Controller):
 
 
 def vertical_to_horizontal_fov(
-    vertical_fov_in_degrees: float, height: float, width: float
+        vertical_fov_in_degrees: float, height: float, width: float
 ):
     assert 0 < vertical_fov_in_degrees < 180
     aspect_ratio = width / height
     vertical_fov_in_rads = (math.pi / 180) * vertical_fov_in_degrees
     return (
-        (180 / math.pi)
-        * math.atan(math.tan(vertical_fov_in_rads * 0.5) * aspect_ratio)
-        * 2
+            (180 / math.pi)
+            * math.atan(math.tan(vertical_fov_in_rads * 0.5) * aspect_ratio)
+            * 2
     )
 
 
 def horizontal_to_vertical_fov(
-    horizontal_fov_in_degrees: float, height: float, width: float
+        horizontal_fov_in_degrees: float, height: float, width: float
 ):
     return vertical_to_horizontal_fov(
         vertical_fov_in_degrees=horizontal_fov_in_degrees, height=width, width=height,
@@ -62,10 +80,12 @@ def get_open_x_displays(throw_error_if_empty: bool = False) -> Sequence[str]:
     assert platform.system() == "Linux", "Can only get X-displays for Linux systems."
 
     displays = []
-    
+
     open_display_strs = [
         os.path.basename(s)[1:] for s in glob.glob("/tmp/.X11-unix/X*")
     ]
+
+    print("Found Displays:", open_display_strs)
 
     # override the default x display when running on a slurm cluster
     if 'SLURM_JOB_GRES' in os.environ:  # if running inside a slurm node
@@ -93,7 +113,10 @@ def get_open_x_displays(throw_error_if_empty: bool = False) -> Sequence[str]:
             continue
 
         try:
-            display = Xlib.display.Display(":{}".format(open_display_str))
+            print("Opening Display:", open_display_str)
+            with TimeoutHandler(seconds=5, error_message=(
+                    "Display {} is not responding.".format(open_display_str))):
+                display = Xlib.display.Display(":{}".format(open_display_str))
         except Xlib.error.DisplayConnectionError:
             continue
 
